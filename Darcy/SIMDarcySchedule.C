@@ -14,7 +14,6 @@
 #include "SIMDarcySchedule.h"
 
 #include "IFEM.h"
-#include "SIM1D.h"
 #include "SIM2D.h"
 #include "SIM3D.h"
 #include "TimeStep.h"
@@ -82,6 +81,5 @@ bool SIMDarcySchedule<Dim>::parse (const tinyxml2::XMLElement* elem)
 }
 
 
-template class SIMDarcySchedule<SIM1D>;
 template class SIMDarcySchedule<SIM2D>;
 template class SIMDarcySchedule<SIM3D>;

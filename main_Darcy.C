@@ -23,7 +23,6 @@
 #include "IFEM.h"
 #include "LogStream.h"
 #include "Profiler.h"
-#include "SIM1D.h"
 #include "SIM2D.h"
 #include "SIM3D.h"
 #include "SIMoptions.h"
@@ -237,7 +236,7 @@ int main (int argc, char** argv)
   {
     std::cout <<"usage: "<< argv[0]
               <<" <inputfile> [-dense|-spr|-superlu[<nt>]|-samg|-petsc]\n"
-              <<"       [-lag|-spec|-LR] [-1D|-2D] [-nGauss <n>] [-hdf5]\n"
+              <<"       [-lag|-spec|-LR] [-2D] [-nGauss <n>] [-hdf5]\n"
               <<"       [-vtf <format> [-nviz <nviz>] [-nu <nu>] [-nv <nv>]"
               <<" [-nw <nw>]]\n";
     return 0;
@@ -265,6 +264,6 @@ int main (int argc, char** argv)
     return runSimulator1<SIM3D>(infile,args);
   else if (args.dim == 2)
     return runSimulator1<SIM2D>(infile,args);
-  else
-    return runSimulator1<SIM1D>(infile,args);
+
+  std::cerr <<" *** Sorry, no 1D implementation."<< std::endl;
 }
