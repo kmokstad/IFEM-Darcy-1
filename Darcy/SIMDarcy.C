@@ -33,6 +33,22 @@ template<class Dim>
 SIMDarcy<Dim>::SIMDarcy (Darcy& itg, unsigned char nf) :
   SIMMultiPatchModelGen<Dim>(nf), drc(itg), solVec(nullptr)
 {
+  this->initProblem();
+}
+
+
+template<class Dim>
+SIMDarcy<Dim>::SIMDarcy (Darcy& itg,
+                         const std::vector<unsigned char>& nf) :
+  SIMMultiPatchModelGen<Dim>(nf), drc(itg), solVec(nullptr)
+{
+  this->initProblem();
+}
+
+
+template<class Dim>
+void SIMDarcy<Dim>::initProblem ()
+{
   drc.setOwnerSim(this);
   Dim::myProblem = &drc;
   Dim::myHeading = "Darcy solver";
@@ -238,7 +254,7 @@ bool SIMDarcy<Dim>::init ()
 {
   this->initSolution(this->getNoDOFs(), 1 + drc.getOrder());
   if (!solVec) solVec = &solution.front();
-  this->registerField("pressure", *solVec);
+  this->registerField(this->getNoBasis() > 1 ? "solution" : "pressure",*solVec);
 
   this->initSystem(Dim::opt.solver);
   this->setQuadratureRule(Dim::opt.nGauss[0],true);
@@ -371,7 +387,9 @@ void SIMDarcy<Dim>::printSolutionSummary (const Vector& solution,
       Dim::adm.cout << std::setprecision(oldPrec);
   }
   else
-    this->SIMbase::printSolutionSummary(solution,printSol,"pressure",outPrec);
+    this->SIMbase::printSolutionSummary(solution,printSol,
+                                       this->getNoBasis() > 1 ? "solution" : "pressure",
+                                       outPrec);
 }
 
 

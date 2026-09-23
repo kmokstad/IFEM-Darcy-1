@@ -11,6 +11,7 @@
 //!
 //==============================================================================
 
+#include "CompatibleDarcyAdv.h"
 #include "DarcyAdvection.h"
 #include "DarcyArgs.h"
 #include "DarcyTransport.h"
@@ -45,12 +46,19 @@ template<class Dim, template<class T> class Solver>
 int runSimulator(char* infile, const DarcyArgs& args)
 {
   std::unique_ptr<Darcy> itg;
-  if (args.tracer)
+  std::vector<unsigned char> fields;
+  if (ASMmxBase::Type == ASMmxBase::DIV_COMPATIBLE)
+  {
+    itg = std::make_unique<CompatibleDarcyAdv>(Dim::dimension,0);
+    fields.resize(Dim::dimension,1);
+  }
+  else if (args.tracer)
     itg = std::make_unique<DarcyTransport>(Dim::dimension,0);
   else
     itg = std::make_unique<Darcy>(Dim::dimension,0);
+  fields.push_back(args.tracer ? 2 : 1);
 
-  SIMDarcy<Dim> darcy(*itg, args.tracer ? 2 : 1);
+  SIMDarcy<Dim> darcy(*itg,fields);
   darcy.setAdaptiveNorm(args.adNorm);
   Solver solver(darcy);
 
@@ -70,11 +78,12 @@ int runSimulator(char* infile, const DarcyArgs& args)
     solver.handleDataOutput(darcy.opt.hdf5,darcy.getProcessAdm());
 
   int res = solver.solveProblem(infile,"Solving Darcy problem");
-  if (!res)
+  if (!res && ASMmxBase::Type != ASMmxBase::DIV_COMPATIBLE)
     darcy.printFinalNorms(TimeStep());
 
   return res;
 }
+
 
 /*!
   \brief Launch a simulator using a specified solver template.
@@ -86,13 +95,21 @@ template<class Dim>
 int runSimulatorTransient(char* infile, const DarcyArgs& args)
 {
   const int torder = TimeIntegration::Order(args.timeMethod);
+
   std::unique_ptr<Darcy> itg;
-  if (args.tracer)
+  std::vector<unsigned char> fields;
+  if (ASMmxBase::Type == ASMmxBase::DIV_COMPATIBLE)
+  {
+    itg = std::make_unique<CompatibleDarcyAdv>(Dim::dimension,torder);
+    fields.resize(Dim::dimension,1);
+  }
+  else if (args.tracer)
     itg = std::make_unique<DarcyTransport>(Dim::dimension,torder);
   else
     itg = std::make_unique<Darcy>(Dim::dimension,torder);
+  fields.push_back(args.tracer ? 2 : 1);
 
-  SIMDarcy<Dim> darcy(*itg, args.tracer ? 2 : 1);
+  SIMDarcy<Dim> darcy(*itg,fields);
   SIMSolver solver(darcy);
 
   utl::profiler->start("Model input");
@@ -111,11 +128,12 @@ int runSimulatorTransient(char* infile, const DarcyArgs& args)
     solver.handleDataOutput(darcy.opt.hdf5,darcy.getProcessAdm());
 
   int res = solver.solveProblem(infile,"Solving Darcy problem");
-  if (!res)
+  if (!res && ASMmxBase::Type != ASMmxBase::DIV_COMPATIBLE)
     darcy.printFinalNorms(solver.getTimePrm());
 
   return res;
 }
+
 
 /*!
   \brief Launch a simulator using a specified solver template.
@@ -173,6 +191,14 @@ int runSimulatorScheduled(char* infile, const DarcyArgs& args)
 template<class Dim>
 int runSimulator1(char* infile, const DarcyArgs& args)
 {
+  if (ASMmxBase::Type == ASMmxBase::DIV_COMPATIBLE)
+    if (args.scheduled || args.adap)
+    {
+      std::cerr <<" *** The div-compatible formulation does not support"
+                <<" scheduled and/or adaptive simulations."<< std::endl;
+      return 1;
+    }
+
   if (args.adap)
     return runSimulator<Dim,SIMDarcyAdap>(infile,args);
   else if (args.scheduled)
@@ -182,6 +208,7 @@ int runSimulator1(char* infile, const DarcyArgs& args)
   else
     return runSimulator<Dim, SIMSolverStat>(infile,args);
 }
+
 
 /*!
   \brief Main program for the isogeometric Darcy solver.
@@ -249,6 +276,9 @@ int main (int argc, char** argv)
   IFEM::getOptions().print(IFEM::cout) << std::endl;
   if (args.tracer)
     IFEM::cout << "Including a tracer field." << std::endl;
+  if (ASMmxBase::Type == ASMmxBase::DIV_COMPATIBLE)
+    IFEM::cout << "Using a divergence-compatible Darcy formulation."
+               << std::endl;
   if (args.timeMethod == TimeIntegration::BE)
     IFEM::cout << "Using Backward-Euler time stepping." << std::endl;
   else if (args.timeMethod == TimeIntegration::BDF2)
