@@ -28,7 +28,7 @@
     </anasol>
     <gravity y="-1.0"/>
     <bodyforce>0.0 | 1.0</bodyforce>
-    <permvalues>1.0 | 1.0</permvalues>
+    <permeability type="constant">1.0</permeability>
   </darcy>
 
 </simulation>
