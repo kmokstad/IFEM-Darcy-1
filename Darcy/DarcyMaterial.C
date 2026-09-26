@@ -50,6 +50,8 @@ DarcyMaterial::DarcyMaterial (DarcyMaterial&& tmp)
 
   if (viscosity == 1.0 && tmp.viscosity > 0.0)
     viscosity = tmp.viscosity;
+  else if (tmp.viscosity < 0.0)
+    viscosity = tmp.viscosity; // invalid properties
 }
 
 
@@ -58,6 +60,12 @@ DarcyMaterial::DarcyMaterial () = default;
 
 DarcyMaterial::~DarcyMaterial () = default;
 
+
+/*!
+  \return \e false if \a elem is not a material tag, otherwise \a true
+  (also if the material data is invalid, which is flagged by setting
+  \ref viscosity to -1.0)
+*/
 
 bool DarcyMaterial::parse (const tinyxml2::XMLElement* elem)
 {
@@ -70,7 +78,7 @@ bool DarcyMaterial::parse (const tinyxml2::XMLElement* elem)
     std::cerr <<" *** DarcyMaterial::parse(): The <permvalues> tag is not"
               <<" supported, use <permeability type=\"diag\"> instead."
               << std::endl;
-    return false;
+    viscosity = -1.0;
   }
   else if ((value = utl::getValue(elem,"permeability")))
   {
@@ -93,12 +101,15 @@ bool DarcyMaterial::parse (const tinyxml2::XMLElement* elem)
         std::cerr <<" *** DarcyMaterial::parse(): Invalid matrix dimension ("
                   << ndim <<"), "<< values.size() <<" values specified."
                   << std::endl;
-        return false;
+        viscosity = -1.0;
       }
-      Matrix Kmat(ndim,ndim);
-      Kmat.fill(values.data());
-      permmatrix.reset(new Matrix(Kmat,true));
-      IFEM::cout <<" matrix:"<< *permmatrix;
+      else
+      {
+        Matrix Kmat(ndim,ndim);
+        Kmat.fill(values.data());
+        permmatrix.reset(new Matrix(Kmat,true));
+        IFEM::cout <<" matrix:"<< *permmatrix;
+      }
       return true;
     }
     IFEM::cout << std::endl;
@@ -121,8 +132,8 @@ bool DarcyMaterial::parse (const tinyxml2::XMLElement* elem)
     density.reset(utl::parseTimeFunc(value,type));
   }
   else if (!(value = utl::getValue(elem,"viscosity")))
-    return false;
-  else if (double mu = atof(value); mu > 0.0)
+    return false; // not a material tag
+  else if (double mu = atof(value); mu > 0.0 && viscosity > 0.0)
     IFEM::cout <<"\t\tFluid viscosity: "<< (viscosity = mu) << std::endl;
 
   return true;
@@ -134,8 +145,10 @@ Vec3 DarcyMaterial::getPermeability (const Vec3& X) const
   Vec3 result;
   if (permvalues.get())
     result = (*permvalues)(X);
-  else if (permeability)
+  else if (permeability.get())
     result = (*permeability)(X);
+  else
+    result = 1.0;
 
   return result;
 }
@@ -154,19 +167,19 @@ bool DarcyMaterial::getPermeability (Matrix* K) const
 
 double DarcyMaterial::getPorosity (const Vec3& X) const
 {
-  return porosity ? (*porosity)(X) : 0.0;
+  return porosity.get() ? (*porosity)(X) : 0.0;
 }
 
 
 double DarcyMaterial::getDispersivity (const Vec3& X) const
 {
-  return dispersivity ? (*dispersivity)(X) : 0.0;
+  return dispersivity.get() ? (*dispersivity)(X) : 0.0;
 }
 
 
 double DarcyMaterial::getDensity (double c) const
 {
-  double rho = density ? (*density)(c) : 1.0;
+  double rho = density.get() ? (*density)(c) : 1.0;
   if (rho > 1.0e-16) return rho;
 
   std::cerr <<" *** DarcyMaterial::getDensity(): Non-positive fluid density ("
