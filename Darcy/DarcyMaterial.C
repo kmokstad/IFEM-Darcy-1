@@ -53,6 +53,9 @@ DarcyMaterial::DarcyMaterial (DarcyMaterial&& tmp)
   else if (tmp.viscosity < 0.0)
     viscosity = tmp.viscosity; // invalid properties
 
+  alphaL = tmp.alphaL;
+  alphaT = tmp.alphaT;
+
   aniDispersivity = std::move(tmp.aniDispersivity);
 }
 
@@ -142,7 +145,13 @@ bool DarcyMaterial::parse (const tinyxml2::XMLElement* elem)
       IFEM::cout <<": "<< aniDispersivity;
     }
     else
+    {
       dispersivity.reset(utl::parseRealFunc(value,type));
+      if (utl::getAttribute(elem,"alphaL",alphaL))
+        IFEM::cout <<", alphaL = "<< alphaL;
+      if (utl::getAttribute(elem,"alphaT",alphaT))
+        IFEM::cout <<", alphaT = "<< alphaT;
+    }
     IFEM::cout << std::endl;
   }
   else if ((value = utl::getValue(elem,"density")))
@@ -215,14 +224,44 @@ double DarcyMaterial::getDispersivity (const Vec3& X) const
 }
 
 
+/*!
+  If either &alpha;<sub>L</sub> = #alphaL or &alpha;<sub>T</sub> = #alphaT
+  is specified, the bulk dispersion tensor \b A is assumed to depend on the
+  on the Darcy flux state \b q, through the following expression:
+  \f[
+    {\bf A}({\bf q}) = \phi D_e{\bf I} + \alpha_T|{\bf q}|{\bf I} +
+       (\alpha_L - \alpha_T)\frac{{\bf q}\otimes{\bf q}}{|{\bf q}|}
+  \f]
+  where \e &phi; and \e D<sub>e</sub> are the porosity and effective
+  molecular diffusivity returned by the getPorosity() and getDispersivity()
+  methods, respectively.
+*/
+
+bool DarcyMaterial::getDispersivity (Matrix& A, size_t n,
+                                     const Vec3& X, const Vec3& q) const
+{
+  if (alphaL <= 0.0 && alphaT <= 0.0)
+    return false; // no state dependency
+
+  const double qn = q.length();
+  A.diag(this->getPorosity(X)*this->getDispersivity(X) + alphaT*qn, n);
+  if (fabs(alphaL - alphaT) < 1.0e-16 || qn < 1.0e-16)
+    return true;
+
+  return A.outer_product(q.vec(n),q.vec(n),true,(alphaL - alphaT)/qn);
+}
+
+
 double DarcyMaterial::getDensity (double c) const
 {
   double rho = density ? (*density)(c) : 1.0;
-  if (rho > 1.0e-16) return rho;
+  if (rho >= 0.0) return rho;
 
-  std::cerr <<" *** DarcyMaterial::getDensity(): Non-positive fluid density ("
-            << rho <<")"<< std::endl;
-  return -1.0;
+#ifdef INT_DEBUG
+  std::cerr <<"  ** DarcyMaterial::getDensity(): Negative fluid density ("
+            << rho <<") returning 0.0"<< std::endl;
+#endif
+  return 0.0;
 }
 
 

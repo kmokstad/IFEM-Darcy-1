@@ -63,6 +63,8 @@ public:
   double getDispersivity(const Vec3& X) const;
   //! \brief Returns the anisotropic dispersivity.
   const Vec3& getDispersivity() const { return aniDispersivity; }
+  //! \brief Computes the state-dependent bulk dispersion matrix.
+  bool getDispersivity(Matrix& A, size_t n, const Vec3& X, const Vec3& q) const;
 
   //! \brief Returns the fluid density.
   double getDensity(double c) const;
@@ -82,6 +84,8 @@ private:
   std::unique_ptr<ScalarFunc> density;      //!< Fluid density function
 
   double viscosity = 1.0; //!< Fluid viscosity
+  double alphaL    = 0.0; //!< Longitudinal dispersivity
+  double alphaT    = 0.0; //!< Transversal/vertical dispersivity
   Vec3   aniDispersivity; //!< Anisotropic (but constant) dispersivity
 };
 
