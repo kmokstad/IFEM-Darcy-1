@@ -413,8 +413,10 @@ void SIMDarcy<Dim>::printSolutionSummary (const Vector& psol, int printSol,
     if (outPrec > 0)
       Dim::adm.cout << std::setprecision(outPrec);
 
-    Dim::adm.cout <<"\n>>> Primary solution summary <<<\n  L2-norm (q,p)  : "
-                  << utl::trunc(dNormq) <<" "<< utl::trunc(dNormp);
+    if (printSol > 0)
+      Dim::adm.cout <<"\n>>> Primary solution summary <<<\n";
+    Dim::adm.cout <<"  L2-norm (q,p)  : "<< utl::trunc(dNormq)
+                  <<" "<< utl::trunc(dNormp);
     for (size_t d = 0; d < nsd; d++)
       if (utl::trunc(dMax[d]) != 0.0)
         Dim::adm.cout <<"\n  Max "<< char('X'+d) <<"-velocity : "

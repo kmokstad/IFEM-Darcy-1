@@ -118,7 +118,6 @@ Number of dofs        100
 Number of unknowns    64
 Solving Darcy advection problem
   step=1  time=0.1
->>> Primary solution summary <<<
   L2-norm (q,p)  : 0.159068 0.0325348
   Max X-velocity : 0.241658
   Max Y-velocity : 0.25
@@ -136,7 +135,6 @@ Solving Darcy advection problem
   Max concentration  : 0.0252549
  \* Scheduled pressure change at time 0.5, calculating new pressure matrix.
   step=5  time=0.5
->>> Primary solution summary <<<
   L2-norm (q,p)  : 0.159068 0.0325348
   Max X-velocity : 0.241658
   Max Y-velocity : 0.25
