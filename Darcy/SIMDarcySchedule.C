@@ -22,13 +22,19 @@
 #include <tinyxml2.h>
 
 
+/*!
+  If the #schedule container is empty, we assume two-ways coupling between
+  the flux/pressure solver and the tracer advection solver such that we need
+  to invoke both in each time step, with the fluxx/pressure solver first.
+*/
+
 template<class Dim>
 bool SIMDarcySchedule<Dim>::solveStep (TimeStep& tp, bool)
 {
   bool newTangent = false;
   bool pressureOk = true;
-  if (tp.step == 1)
-    pressureOk = this->S1.solveStep(tp);
+  if (tp.step == 1 || schedule.empty())
+    newTangent = pressureOk = this->S1.solveStep(tp);
   else if (schit != schedule.end() && tp.time.t >= *schit)
   {
     IFEM::cout <<"\n * Scheduled pressure change at time "<< *schit
@@ -63,18 +69,23 @@ void SIMDarcySchedule<Dim>::setupDependencies ()
 }
 
 
+/*!
+  This method is overridded to parse the scheduled pressure update times.
+  The default is to run the pressure solver in every time step.
+*/
+
 template<class Dim>
 bool SIMDarcySchedule<Dim>::parse (const tinyxml2::XMLElement* elem)
 {
   if (strcasecmp(elem->Value(),"darcy"))
     return true;
 
-  const tinyxml2::XMLElement* child = elem->FirstChildElement();
-  for (; child; child = child->NextSiblingElement())
+  for (const tinyxml2::XMLElement* child = elem->FirstChildElement();
+       child; child = child->NextSiblingElement())
     if (!strcasecmp(child->Value(),"schedule"))
     {
-      const tinyxml2::XMLElement* sched = child->FirstChildElement("update");
-      for (; sched; sched = sched->NextSiblingElement("update"))
+      for (const tinyxml2::XMLElement* sched = child->FirstChildElement("update");
+           sched; sched = sched->NextSiblingElement("update"))
         if (double t = 0.0; utl::getAttribute(sched,"time",t))
           schedule.insert(t);
         else if (utl::getAttribute(sched,"start",t))

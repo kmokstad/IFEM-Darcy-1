@@ -76,11 +76,8 @@ bool DarcyArgs::parseArg (const char* argv)
 
 bool DarcyArgs::parse (const tinyxml2::XMLElement* elem)
 {
-  if (!strcasecmp(elem->Value(),"timestepping")) {
-    if (std::string type; utl::getAttribute(elem,"type",type))
-      timeMethod = TimeIntegration::get(type);
-  }
-  else if (!strcasecmp(elem->Value(),"darcy")) {
+  if (!strcasecmp(elem->Value(),"darcy"))
+  {
     utl::getAttribute(elem,"tracer",tracer);
     utl::getAttribute(elem,"piola",usePiola);
     if (std::string form; utl::getAttribute(elem,"formulation",form))
@@ -102,10 +99,15 @@ bool DarcyArgs::parse (const tinyxml2::XMLElement* elem)
       else if (strcasecmp(ad,"recovery") == 0)
         adNorm = DCY::RECOVERY;
     }
-
     if (elem->FirstChildElement("schedule"))
       scheduled = true;
   }
+  else if (!strcasecmp(elem->Value(),"darcyadvection"))
+    scheduled = true;
+
+  else if (!strcasecmp(elem->Value(),"timestepping"))
+    if (std::string type; utl::getAttribute(elem,"type",type))
+      timeMethod = TimeIntegration::get(type);
 
   return this->SIMargsBase::parse(elem);
 }
