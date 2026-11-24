@@ -144,10 +144,8 @@ bool Darcy::evalInt (LocalIntegral& elmInt, const FiniteElement& fe,
 
   // Get fluid density, viscosity and permeability at this point
 
-  const double rho = this->getDensity(fe);
-  if (rho <= 0.0) return false;
-
   Matrix Kmat;
+  const double rho = this->getDensity(fe);
   const double mu = mat->getViscosity();
   const Vec3 K = mat->getPermeability(X);
   const bool hasKmat = mat->getPermeability(&Kmat);
@@ -303,8 +301,6 @@ bool Darcy::darcyFlux (Vector& q, const Vectors& eV,
                        const FiniteElement& fe, const Vec3& X, size_t) const
 {
   const double rho = this->getDensity(fe);
-  if (rho <= 0.0) return false;
-
   Vec3 dP = this->pressureGradient(eV, fe) - rho*gravity;
   if (bodyforce)
     dP -= rho * (*bodyforce)(X);
