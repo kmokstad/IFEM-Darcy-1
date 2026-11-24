@@ -88,43 +88,18 @@ bool DarcyAdvection::evalInt (LocalIntegral& elmInt, const FiniteElement& fe,
   if (!elMat.A.empty() && calcMats)
   {
     Vector qVec(nsd);
-    if (pField)
-    {
-      Matrix Kmat;
-      const bool hasKmat = mat->getPermeability(&Kmat);
-      const Vec3 Kvec = mat->getPermeability(X);
-      const double mu = mat->getViscosity();
-
-      // Evaluate the Darcy velocity, q = -K/mu * (grad(p) - rho*(g + bf))
-      Vector dP;
-      pField->gradFE(fe,dP);
-      Vec3 q(gravity);
-      if (bodyforce)
-        q += (*bodyforce)(X);
-      if (!q.isZero())
-        dP.add(q.vec(nsd),-mat->getDensity(elmInt.vec.front().dot(fe.N)));
-      if (!hasKmat)
-        for (size_t i = 0; i < nsd; i++)
-          qVec[i] = -(Kvec[i]/mu)*dP[i];
-      else if (!Kmat.multiply(dP,qVec,-1.0/mu))
-        return false;
-    }
-    else if (fField)
-      fField->valueFE(fe,qVec);
-    else
-    {
-      std::cerr <<" *** DarcyAdvection::evalInt: Neither a pressure nor\n"
-                <<"     a flux field has been assigned,"
-                <<" can't calculate advection terms."<< std::endl;
+    if (!this->darcyFlux(qVec,elmInt.vec.front(),fe,X))
       return false;
-    }
 
-    if (double D = mat->getDispersivity(X); D > 0.0)
+    Vec3 q(qVec);
+    Matrix Dmat;
+    if (mat->getDispersivity(Dmat,nsd,X,q))
+      Weak::LaplacianCoeff(elMat.A.front(), Dmat, fe);
+    else if (double D = mat->getDispersivity(X); D > 0.0)
       Weak::Laplacian(elMat.A.front(), fe, D);
     else
       Weak::LaplacianCoeff(elMat.A.front(), mat->getDispersivity(), fe);
 
-    Vec3 q(qVec);
     Weak::Advection(elMat.A.front(), fe, q, 1.0, WeakOperators::CONSERVATIVE);
   }
 
@@ -145,6 +120,73 @@ bool DarcyAdvection::evalInt (LocalIntegral& elmInt, const FiniteElement& fe,
   }
 
   return true;
+}
+
+
+bool DarcyAdvection::darcyFlux (Vector& qVec, const Vector& eV,
+                                const FiniteElement& fe, const Vec3& X) const
+{
+  if (pField)
+  {
+    Matrix Kmat;
+    const bool hasKmat = mat->getPermeability(&Kmat);
+    const Vec3 Kvec = mat->getPermeability(X);
+    const double mu = mat->getViscosity();
+    if (mu <= 1.0e-16) return false;
+
+    // Evaluate the Darcy velocity, q = -K/mu * (grad(p) - rho*(g + bf))
+    Vector dP;
+    pField->gradFE(fe,dP);
+    Vec3 q(gravity);
+    if (bodyforce)
+      q += (*bodyforce)(X);
+    if (!q.isZero())
+      dP.add(q.vec(nsd),-mat->getDensity(eV.dot(fe.N)));
+    if (hasKmat)
+      return Kmat.multiply(dP,qVec,-1.0/mu);
+
+    qVec = dP;
+    for (size_t i = 0; i < nsd; i++)
+      qVec[i] *= -Kvec[i]/mu;
+  }
+  else if (fField)
+    fField->valueFE(fe,qVec);
+  else
+  {
+    std::cerr <<" *** DarcyAdvection::darcyFlux: Neither a pressure nor\n"
+              <<"     a flux field has been assigned."<< std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+
+double DarcyAdvection::energy (const Vector& eV,
+                               const FiniteElement& fe, const Vec3& X) const
+{
+  Vector qVec(nsd), dCh(nsd);
+
+  // Evaluate the Darcy flux vector
+  if (!this->darcyFlux(qVec,eV,fe,X))
+    return false;
+
+  // Evaluate the concentration field gradient
+  if (!fe.dNdX.multiply(eV,dCh,true))
+    return false;
+
+  Matrix Dmat;
+  if (mat->getDispersivity(Dmat,nsd,X,Vec3(qVec.ptr(),nsd)))
+    return dCh*(Dmat*dCh);
+  else if (double D = mat->getDispersivity(X); D > 0.0)
+    return D*dCh.dot(dCh);
+
+  const Vec3& D = mat->getDispersivity();
+  double energy = 0.0;
+  for (size_t i = 0; i < dCh.size() && i < 3; i++)
+    energy += dCh[i]*D[i]*dCh[i];
+
+  return energy;
 }
 
 
@@ -192,7 +234,7 @@ bool DarcyAdvection::evalSol2 (Vector& s, const Vectors& eV,
     s.push_back((*source)(X));
 
   Vector dCh(nsd);
-  fe.grad(1).multiply(eV.front(),dCh,true);
+  fe.dNdX.multiply(eV.front(),dCh,true);
   s.push_back(dCh.begin(),dCh.end());
 
   return true;
@@ -229,16 +271,8 @@ bool DarcyAdvectionNorm::evalInt (LocalIntegral& elmInt,
 {
   ElmNorm& pnorm = static_cast<ElmNorm&>(elmInt);
   const DarcyAdvection& problem = static_cast<const DarcyAdvection&>(myProblem);
-  const Vec3 D = problem.getDispersivity(X);
 
-  // Evaluate the concentration field gradient
-  Vector dCh;
-  fe.grad(1).multiply(elmInt.vec.front(), dCh, true);
-
-  double energy = 0.0;
-  for (size_t i = 0; i < dCh.size() && i < 3; i++)
-    energy += dCh[i]*D[i]*dCh[i];
-  pnorm[0] += energy*fe.detJxW;
+  pnorm[0] += problem.energy(elmInt.vec.front(),fe,X)*fe.detJxW;
 
   return true;
 }
@@ -250,7 +284,8 @@ size_t DarcyAdvectionNorm::getNoFields (int group) const
 }
 
 
-std::string DarcyAdvectionNorm::getName (size_t, size_t, const char* prefix) const
+std::string DarcyAdvectionNorm::getName (size_t, size_t,
+                                         const char* prefix) const
 {
   static const char* name = "concentration gradient norm";
 

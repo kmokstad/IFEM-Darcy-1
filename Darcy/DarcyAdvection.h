@@ -55,6 +55,21 @@ public:
   bool evalInt(LocalIntegral& elmInt, const FiniteElement& fe,
                const TimeDomain& time, const Vec3& X) const override;
 
+  //! \brief Evaluates the Darcy flux in a point.
+  //! \param qVec Resulting Darcy flux vector
+  //! \param[in] eV Element vector at current point
+  //! \param[in] fe Finite element data at current point
+  //! \param[in] X Coordinates of current point
+  bool darcyFlux(Vector& qVec, const Vector& eV,
+                 const FiniteElement& fe, const Vec3& X) const;
+
+  //! \brief Evaluates the energy density from the solution in a point.
+  //! \param[in] eV Element vector at current point
+  //! \param[in] fe Finite element data at current point
+  //! \param[in] X Coordinates of current point
+  double energy(const Vector& eV,
+                const FiniteElement& fe, const Vec3& X) const;
+
   //! \brief Evaluates the secondary solution at a result point.
   //! \param[out] s Array of solution field values at current point
   //! \param[in] fe Finite element data at current point
