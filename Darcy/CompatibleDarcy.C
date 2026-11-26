@@ -53,7 +53,7 @@ LocalIntegral* CompatibleDarcy::getLocalIntegral (const UintVec& nen,
   const bool hasKmat = mat && mat->getPermeability();
 
   size_t i = 0;
-  result->resize(NMAT, NVEC);
+  result->resize(NMAT, NVEC, 1);
   result->redim(qxqx, nen[i++], 1, 1);
   result->redim(qyqy, nen[i++], 1, 2);
   result->redim(qzqz, nsd == 3 ? nen[i++] : 0, 1, 3);
@@ -216,7 +216,12 @@ bool CompatibleDarcy::evalIntMx (LocalIntegral& elmInt,
   }
 
   if (source)
-    ScalarOps::Source(elMat.b[Fp], fe, (*source)(X), 1, scalarBasis);
+  {
+    const double f = (*source)(X);
+    ScalarOps::Source(elMat.b[Fp], fe, f, 1, scalarBasis);
+    if (!elMat.c.empty())
+      elMat.c.front() += f*fe.detJxW;
+  }
 
   return true;
 }

@@ -14,6 +14,7 @@
 #include "SIMDarcy.h"
 #include "CompatibleDarcy.h"
 
+#include "AlgEqSystem.h"
 #include "AnaSol.h"
 #include "DataExporter.h"
 #include "IFEM.h"
@@ -275,7 +276,7 @@ bool SIMDarcy<Dim>::init ()
   if (!solVec) solVec = solution.data();
   this->registerField(this->mixedProblem() ? "solution" : "pressure", *solVec);
 
-  this->initSystem(Dim::opt.solver);
+  this->initSystem(Dim::opt.solver,1,1,1);
   this->setQuadratureRule(Dim::opt.nGauss[0],true);
 
   if (mVec.empty())
@@ -415,6 +416,8 @@ void SIMDarcy<Dim>::printSolutionSummary (const Vector& psol, int printSol,
 
     if (printSol > 0)
       Dim::adm.cout <<"\n>>> Primary solution summary <<<\n";
+    if (double src = Dim::myEqSys->getScalar(); utl::trunc(src) != 0.0)
+      Dim::adm.cout <<"  Total source   : "<< src <<"\n";
     Dim::adm.cout <<"  L2-norm (q,p)  : "<< utl::trunc(dNormq)
                   <<" "<< utl::trunc(dNormp);
     for (size_t d = 0; d < nsd; d++)
